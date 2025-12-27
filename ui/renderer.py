@@ -5,7 +5,13 @@ from constants import TILE_SIZE, MARGIN, COLORS, TILE_RADIUS
 WALL_MARGIN = TILE_RADIUS + MARGIN
 SPACE_BETWEEN = TILE_SIZE + MARGIN
 
+# globalna mapa za prati pozicije svih pločica u sredini
+middle_tiles_map = {}
+
 def draw_board(screen, board):
+    global middle_tiles_map
+    middle_tiles_map.clear()
+    
     num_of_player_tiles = (board.size - 1) / 2
     col_size = board.size + 1
     num_of_cols = board.size * 2 + 1
@@ -44,6 +50,7 @@ def draw_board(screen, board):
     left_right_pattern = [2, 2, 1, 1, 1, 1, 2, 2]
     top_bottom_count = 0
     left_right_count = 0
+    middle_id = 0
     
     for col in range(num_of_cols):
         for tile in range(col_size):
@@ -59,6 +66,7 @@ def draw_board(screen, board):
             is_edge = is_left_right_edge or is_top_bottom_edge
             
             if is_edge:
+                # obriši šablon za grana
                 if is_left_right_edge and not is_top_bottom_edge:
                     pattern_value = left_right_pattern[left_right_count % len(left_right_pattern)]
                     left_right_count += 1
@@ -67,7 +75,19 @@ def draw_board(screen, board):
                     top_bottom_count += 1
                 color = "rTile" if pattern_value == 2 else "gTile"
             else:
-                color = "wTile"
+                # srednja pločica - proveri da li je zauzeta
+                if middle_id in board.edges:
+                    state = board.edges[middle_id]
+                    if state == 1:
+                        color = "rTile"
+                    else:
+                        color = "gTile"
+                else:
+                    color = "wTile"
+                
+                # sačuvaj poziciju za kasnije detektovanje klika
+                middle_tiles_map[middle_id] = (cx, cy)
+                middle_id += 1
             
             draw_tile(screen, cx, cy, color)
 
@@ -78,6 +98,16 @@ def draw_board(screen, board):
             col_size += 1
         else:
             col_size -= 1
+
+def get_clicked_edge(mouse_pos):
+    """pronađi koju je srednju pločicu kliknut"""
+    mx, my = mouse_pos
+    for middle_id, (cx, cy) in middle_tiles_map.items():
+        # proveri da li je klik bio u krugu tile-a
+        distance = math.sqrt((mx - cx) ** 2 + (my - cy) ** 2)
+        if distance <= TILE_RADIUS:
+            return middle_id
+    return None
 
 def draw_tile(screen, cx, cy, color):
     pygame.draw.circle(
