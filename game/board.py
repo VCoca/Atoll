@@ -14,8 +14,7 @@ class Board:
             for _ in range(2 * size - 1)
         ]
 
-    def X(n):
-        return chr(ord('A') + n)
-
+    def X(x):
+        return x + 1
     def Y(y):
-        return y  + 1
+        return chr(ord('A') + y)
