@@ -75,6 +75,13 @@ def draw_board(screen, board):
     global middle_tiles_map
     middle_tiles_map.clear()
     
+    # Calculate n based on board size
+    n = (board.size - 1) // 2
+    
+    # Generate patterns dynamically
+    top_bottom_pattern = ([1, 2] * n) + ([2, 1] * n)
+    left_right_pattern = ([2] * n) + ([1] * (n * 2)) + ([2] * n)
+    
     col_size = board.size + 1
     num_of_cols = board.size * 2 + 1
     half = 0
@@ -102,8 +109,6 @@ def draw_board(screen, board):
     corner_positions.add((widest_col, 0))
     corner_positions.add((widest_col, max_col_size - 1))
     
-    top_bottom_pattern = [1, 2, 1, 2, 2, 1, 2, 1]
-    left_right_pattern = [2, 2, 1, 1, 1, 1, 2, 2]
     top_bottom_count = 0
     left_right_count = 0
     middle_id = 0
