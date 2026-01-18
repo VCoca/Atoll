@@ -74,6 +74,8 @@ class Board:
         self.matrix[size][2*size] = filler
         self.matrix[2*size][2*size] = filler
 
+
+
     def drawMatrix(self):
         for i in range(self.dim):
             for j in range(self.dim):
@@ -111,6 +113,9 @@ class Board:
     def checkRootNeighbor(self, x, y):
         rootNeighbors = [] # lista komsija
 
+    def modifyArray(self, x, y, player):
+        # pretpostavlja da su x i y dobri, proverava se van
+        self.matrix[x+1][y+1]=player
 
     # vraca koordinate
     def checkNeighbors(self, x, y):
@@ -232,3 +237,22 @@ class Board:
                         stack.append((nx, ny))
         return False
 # ...existing code...
+
+def number_to_position(number, board_size):
+    column_lengths = []
+        
+    for i in range(board_size):
+        column_lengths.append(board_size + i)
+        
+    for i in range(1, board_size):
+        column_lengths.append(2 * board_size - 1 - i)
+        
+        remaining = number
+    for col in range(len(column_lengths)):
+        col_length = column_lengths[col]
+        if remaining < col_length:
+            row = remaining
+            return (row, col)
+        remaining -= col_length
+        
+    return (-1, -1)

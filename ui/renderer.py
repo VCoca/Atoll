@@ -157,6 +157,7 @@ def get_clicked_edge(mouse_pos):
     for middle_id, (cx, cy) in middle_tiles_map.items():
         distance = math.sqrt((mx - cx) ** 2 + (my - cy) ** 2)
         if distance <= TILE_RADIUS:
+            print(middle_id)
             return middle_id
     return None
 

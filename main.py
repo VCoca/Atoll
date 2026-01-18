@@ -1,6 +1,6 @@
 import pygame
 from ui.renderer import draw_board, get_clicked_edge, draw_menu, handle_menu_click, selected
-from game.board import Board
+from game.board import Board, number_to_position
 from constants import COLORS
 
 pygame.init()
@@ -37,6 +37,9 @@ while running:
                 edge_id = get_clicked_edge(event.pos)
                 if edge_id is not None and edge_id not in board.edges:
                     board.edges[edge_id] = current_player
+                    row, col = number_to_position(edge_id, board.size)
+                    board.modifyArray(row, col, current_player)
+                    board.drawMatrix()
                     current_player = 2 if current_player == 1 else 1
 
     screen.fill(COLORS["bg"])
