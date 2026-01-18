@@ -248,11 +248,14 @@ def number_to_position(number, board_size):
         column_lengths.append(2 * board_size - 1 - i)
         
         remaining = number
+
+    j=1
     for col in range(len(column_lengths)):
         col_length = column_lengths[col]
         if remaining < col_length:
             row = remaining
-            return (row, col)
+            return (row+max(0,j-board_size), col)
         remaining -= col_length
+        j+=1
         
     return (-1, -1)
