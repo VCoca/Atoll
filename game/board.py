@@ -50,7 +50,7 @@ class Board:
                 self.matrix[i][size + i] = -1
                 self.matrix[size + i][i] = -2
 
-        filler = '7'
+        filler = ' '
 
         # popunjavanje nepostojecih polja
         # opsti slucajevi
@@ -77,7 +77,7 @@ class Board:
     def drawMatrix(self):
         for i in range(self.dim):
             for j in range(self.dim):
-                print(f"{self.matrix[i][j]:3}", end="")
+                print(f"{self.matrix[i][j]:3}", end=" ")
 
             print()
 
