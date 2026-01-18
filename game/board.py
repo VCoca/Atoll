@@ -120,31 +120,92 @@ class Board:
     # vraca koordinate
     def checkNeighbors(self, x, y):
         neighbors = []
-        if self.matrix[x][y] == 0:
+        if self.matrix[x][y] == 0 or self.matrix[x][y] == ' ' or self.matrix[x][y]:
             return [] # vraca prazno jer ne uzimamo u obzir prazna polja
         
-        if (x > 0):
-            if (y > 0):
-                if (self.matrix[x - 1][y - 1] == self.matrix[x][y]):
-                    neighbors.append((x - 1, y - 1))
-                if (self.matrix[x][y - 1] == self.matrix[x][y]):
-                    neighbors.append((x, y - 1))
+        # da bi radilo za korena polja da ne nalazi susede koji su korena polja
+        # radimo proveru prvo je l koreno i ako jeste onda proveravamo je l
+        # ima istu vrednost kao abs(koreno); ako nije nije bitno
+
+        # provera da li je root
+        if (self.matrix[x][y] < 0):
+            if (x > 0):
+                if (y > 0):
+                    if (self.matrix[x - 1][y - 1] == abs(self.matrix[x][y])):
+                        neighbors.append((x - 1, y - 1))
+                    if (self.matrix[x][y - 1] == abs(self.matrix[x][y])):
+                        neighbors.append((x, y - 1))
+
+            if (self.matrix[x - 1][y] == abs(self.matrix[x][y])):
+                neighbors.append((x - 1, y))
+
+            if (x < self.dim - 1):
+                if (y < self.dim - 1):
+                    if (self.matrix[x + 1][y + 1] == abs(self.matrix[x][y])):
+                        neighbors.append((x + 1, y + 1))
+                    if (self.matrix[x][y + 1] == abs(self.matrix[x][y])):
+                        neighbors.append((x, y + 1))
+
+                if (self.matrix[x + 1][y] == abs(self.matrix[x][y])):
+                    neighbors.append((x + 1, y))
+
+        # ako nije root
+        else:
+            if (x > 0):
+                if (y > 0):
+                    if (self.matrix[x - 1][y - 1] == self.matrix[x][y]):
+                        neighbors.append((x - 1, y - 1))
+                    if (self.matrix[x][y - 1] == self.matrix[x][y]):
+                        neighbors.append((x, y - 1))
 
             if (self.matrix[x - 1][y] == self.matrix[x][y]):
                 neighbors.append((x - 1, y))
 
-        if (x < self.dim - 1):
-            if (y < self.dim - 1):
-                if (self.matrix[x + 1][y + 1] == self.matrix[x][y]):
-                    neighbors.append((x + 1, y + 1))
-                if (self.matrix[x][y + 1] == self.matrix[x][y]):
-                    neighbors.append((x, y + 1))
+            if (x < self.dim - 1):
+                if (y < self.dim - 1):
+                    if (self.matrix[x + 1][y + 1] == self.matrix[x][y]):
+                        neighbors.append((x + 1, y + 1))
+                    if (self.matrix[x][y + 1] == self.matrix[x][y]):
+                        neighbors.append((x, y + 1))
 
-            if (self.matrix[x + 1][y] == self.matrix[x][y]):
-                neighbors.append((x + 1, y))
+                if (self.matrix[x + 1][y] == self.matrix[x][y]):
+                    neighbors.append((x + 1, y))
             
         return neighbors
     
+    def getRoots(self):
+        roots = []
+        for i in range(self.dim):
+            for j in range(self.dim):
+                if (self.matrix[i][j] < 0):
+                    roots.append(i, j)
+
+        return roots
+     # da li je endRoot dozvoljen kraj
+    def isRealEndRoot(self, root1X, root1Y):
+        # TODO: napravi haha
+
+        return False
+
+    # provera da li je kraj igre - DPS
+    def isGoal(self):
+        # minimalan br. poteza za kraj igre
+        if (self.moveCount > (2 * (self.size - 1) - 1)):
+            visitedRoots = set()    # skup ima jedinstvene elemente
+            roots = self.getRoots()
+            for i, (nx, ny) in enumerate(roots):
+                # i = indeks, (nx, ny) = koordinata korena
+                if (nx, ny) in visitedRoots:
+                    continue
+
+                # lista komsija trenutnog root polja
+                currRootNeighbors = self.checkNeighbors(nx, ny)
+                if (currRootNeighbors):
+                    for neighbor in currRootNeighbors:
+                        if neighbor in visitedRoots:
+                            continue
+                            
+                        visitedRoots.add(neighbor)
     # TODO: nisam siguran za ovu f-ju, treba je proveriti
     def checkNonNeighborRoots(self):
         roots = self.checkRoots()
