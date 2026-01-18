@@ -26,6 +26,10 @@ while running:
                 start_clicked = handle_menu_click(event.pos)
                 if start_clicked:
                     board = Board(size=selected["size"])
+
+                    # POCETNA MATRICA:
+                    board.drawMatrix()
+
                     current_player = 1 if selected["color"] == "crvena" else 2
                     game_state = GAME
 

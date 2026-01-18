@@ -5,11 +5,11 @@ class Board:
         # prati stanja grana: 0 = slobodno, 1 = crveno, 2 = zeleno
         self.edges = {}
 
-        # matrica je dimenzija 2*size-1 za spoljna
+        # matrica je dimenzija 2*size+1
         # minimalan broj poteza pre zavrsetka igre je 4(size-1)-2
         # sto je oba igraca po 2(n-1)-1 poteza
 
-        self.dim = 2 * size - 1
+        self.dim = 2 * size + 1
         self.matrix = [
             [0 for _ in range(self.dim)]
             for _ in range(self.dim)
@@ -19,7 +19,63 @@ class Board:
         # nakon 2*(size-1)-1 poteza jednog igraca ima smisla pozivati f-ju za proveru
         # da li je cilj igre ispunjen; isto f-ja checkRoots tek kad vrati nesto treba proveravati da li je igra gotova
         # i to da li je vratila 1 bar koren i jos jedan i to ne susedni
-        self.stepCount: int = 0
+        self.moveCount: int = 0
+
+        self.moves = []
+
+        # punjenje rubova
+        # -1 crvena, -2 zelena
+        for i in range(1, size):
+            if (i <= ((size - 1) / 2)):
+                self.matrix[0][i] = -2
+                self.matrix[i][0] = -1
+            else:
+                self.matrix[0][i] = -1
+                self.matrix[i][0] = -2
+
+        for i in range(size + 1, 2 * size):
+            if (i <= (size + (size - 1) / 2)):
+                self.matrix[2 * size][i] = -1
+                self.matrix[i][2 * size] = -2
+            else:
+                self.matrix[2 * size][i] = -2
+                self.matrix[i][2 * size] = -1
+
+        for i in range(1, size):
+            # druga koordinata je size+i
+            if (i <= ((size - 1) / 2)):
+                self.matrix[i][size + i] = -2
+                self.matrix[size + i][i] = -1
+            else:
+                self.matrix[i][size + i] = -1
+                self.matrix[size + i][i] = -2
+
+        filler = '7'
+
+        # popunjavanje nepostojecih polja
+        # opsti slucajevi
+        for i in range (size):
+            for j in range (size + i, 2 * size):
+                self.matrix[i][j] = filler
+        
+        for i in range(size, 2 * size):
+            for j in range(i - size):
+                self.matrix[i][j] = filler
+        
+        # specijalni slucajevi
+        self.matrix[0][0] = filler
+        self.matrix[0][size] = filler
+        self.matrix[5][0] = filler
+        self.matrix[5][2 * size - 1] = filler
+        self.matrix[2 * size - 1][size] = filler
+        self.matrix[2 * size - 1][2 * size - 1] = filler
+
+    def drawMatrix(self):
+        for i in range(self.dim):
+            for j in range(self.dim):
+                print(f"{self.matrix[i][j]:3}", end="")
+
+            print()
 
     def X(x):
         return x + 1
@@ -27,21 +83,30 @@ class Board:
     def Y(y):
         return chr(ord('A') + y)
     
+    def move(self, x, y):
+        self.moveCount += 1
+        self.moves.add(x, y) # da cuva koordinate; bitno zbog algoritma
+        return [self.X(x), self.Y(y)] # za prikaz
+
     # vraca koordinate
     # TODO: proveriti checkRoots
-    def checkRoots(self):
-        n = self.size
-        roots_coords = [
-            (0, 0),
-            (0, n-1),
-            (2*(n-1), n-1),
-            (2*(n-1), 2*(n-1)),
-            (n-1, 2*(n-1)),
-            (0, n-1) ## duplikat?
-        ]
-        #roots = [f"{x},{y}" for x, y in roots_coords]
-        #return roots
-        return roots_coords
+    # def checkRoots(self):
+    #     n = self.size
+    #     roots_coords = [
+    #         (0, 0),
+    #         (0, n-1),
+    #         (2*(n-1), n-1),
+    #         (2*(n-1), 2*(n-1)),
+    #         (n-1, 2*(n-1)),
+    #         (0, n-1) ## duplikat?
+    #     ]
+    #     #roots = [f"{x},{y}" for x, y in roots_coords]
+    #     #return roots
+    #     return roots_coords
+
+    def checkRootNeighbor(self, x, y):
+        rootNeighbors = [] # lista komsija
+
 
     # vraca koordinate
     def checkNeighbors(self, x, y):
@@ -99,13 +164,13 @@ class Board:
         # za sad neka ga da bude posebna f-ja cisto da imamo logiku za to
         # (jer ako su susedni koreni onda sigurno nije kraj igre)
 
-        stepCount = self.stepCount
+        moveCount = self.moveCount
         roots = self.checkRoots()
         nonNeighborRoots = self.checkNonNeighborRoots()
         
         # TODO: isto treba odluciti o definiciji poteza; da li je potez kad oba igraca igraju ili kad
         # je igrao samo jedan
-        if (stepCount > (2 * (self.dim - 1) - 1) and roots and nonNeighborRoots):
+        if (moveCount > (2 * (self.dim - 1) - 1) and roots and nonNeighborRoots):
             visitedRoots = set() # prazan skup (jedinstveni elementi)
             # da ne odemo npr. u kruzno ispitivanje
             for (x, y) in roots:
@@ -134,12 +199,12 @@ class Board:
     # OVO MI JE COPILOT PISAO; NEKA GA OVDE A VIDECEMO DA LI JE DOBRO
     # SVAKAKO OCU OVU GORE VERZIJU RADIJE DA MODIFIKUJEM NEGO DA KORISTIMO OVU
     def isGoal2(self):
-        stepCount = self.stepCount
+        moveCount = self.moveCount
         roots = self.checkRoots()
         nonNeighborRoots = self.checkNonNeighborRoots()
         
         # minimalni threshold pre provere cilja
-        if not (stepCount > (2 * (self.dim - 1) - 1) and roots and nonNeighborRoots):
+        if not (moveCount > (2 * (self.dim - 1) - 1) and roots and nonNeighborRoots):
             return False
 
         non_set = set(nonNeighborRoots)
