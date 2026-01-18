@@ -54,21 +54,25 @@ class Board:
 
         # popunjavanje nepostojecih polja
         # opsti slucajevi
-        for i in range (size):
-            for j in range (size + i, 2 * size):
+        for i in range (1, size):
+            for j in range (size + 1 + i, 2 * size + 1):
                 self.matrix[i][j] = filler
         
-        for i in range(size, 2 * size):
+        for i in range(size + 1, 2 * size):
             for j in range(i - size):
                 self.matrix[i][j] = filler
-        
-        # specijalni slucajevi
+
+        #specijalni slucajevi
+        for i in range(size, 2 * size + 1):
+            self.matrix[0][i] = filler
+
+        for i in range(0, size + 1):
+            self.matrix[2*size][i] = filler
+
         self.matrix[0][0] = filler
-        self.matrix[0][size] = filler
-        self.matrix[5][0] = filler
-        self.matrix[5][2 * size - 1] = filler
-        self.matrix[2 * size - 1][size] = filler
-        self.matrix[2 * size - 1][2 * size - 1] = filler
+        self.matrix[size][0] = filler
+        self.matrix[size][2*size] = filler
+        self.matrix[2*size][2*size] = filler
 
     def drawMatrix(self):
         for i in range(self.dim):
