@@ -34,13 +34,21 @@ while running:
                     game_state = GAME
 
             elif game_state == GAME:
-                edge_id = get_clicked_edge(event.pos)
-                if edge_id is not None and edge_id not in board.edges:
-                    board.edges[edge_id] = current_player
-                    row, col = number_to_position(edge_id, board.size)
-                    board.modifyArray(row, col, current_player)
-                    board.drawMatrix()
-                    current_player = 2 if current_player == 1 else 1
+                if not board.game_over:
+                    edge_id = get_clicked_edge(event.pos)
+                    if edge_id is not None and edge_id not in board.edges:
+                        board.edges[edge_id] = current_player
+                        row, col = number_to_position(edge_id, board.size)
+                        board.modifyArray(row, col, current_player)
+
+                        board.moveCount += 1
+                        if (board.isGoal()):
+                            board.game_over = True
+                            #pygame.quit()
+
+                        else:
+                            board.drawMatrix()
+                            current_player = 2 if current_player == 1 else 1
 
     screen.fill(COLORS["bg"])
 

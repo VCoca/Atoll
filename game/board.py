@@ -5,6 +5,8 @@ class Board:
         # prati stanja grana: 0 = slobodno, 1 = crveno, 2 = zeleno
         self.edges = {}
 
+        self.game_over = False
+
         # matrica je dimenzija 2*size+1
         # minimalan broj poteza pre zavrsetka igre je 4(size-1)-2
         # sto je oba igraca po 2(n-1)-1 poteza
@@ -91,17 +93,44 @@ class Board:
     
     def move(self, x, y):
         self.moveCount += 1
-        self.moves.add(x, y) # da cuva koordinate; bitno zbog algoritma
+        self.moves.append(x, y) # da cuva koordinate; bitno zbog algoritma
         return [self.X(x), self.Y(y)] # za prikaz
 
     def modifyArray(self, x, y, player):
         # pretpostavlja da su x i y dobri, proverava se van
         self.matrix[x+1][y+1]=player
 
-    # vraca koordinate
+
     def checkNeighbors(self, x, y):
+        """
+        Vraca listu susednih koordinata koje su povezane sa trenutnim poljem.
+        Povezano znaci:
+          - ista apsolutna vrednost root-a (-1/-2)
+          - ili ista vrednost igrača (1/2)
+        """
         neighbors = []
-        if self.matrix[x][y] == 0 or self.matrix[x][y] == ' ' or self.matrix[x][y]:
+        val = self.matrix[x][y]
+        if val == 0 or val == ' ':
+            return []
+
+        # sve moguce susedne pozicije (horizontalno, vertikalno, dijagonalno)
+        directions = [(-1,0),(1,0),(0,-1),(0,1),(-1,-1),(1,1)]
+
+        for dx, dy in directions:
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < self.dim and 0 <= ny < self.dim:
+                nval = self.matrix[nx][ny]
+                if nval != 0 and nval != ' ':
+                    # dozvoljeno: ista apsolutna vrednost ili ista vrednost igrača
+                    if abs(nval) == abs(val) or nval == val:
+                        neighbors.append((nx, ny))
+        return neighbors
+
+    # vraca koordinate
+    "NE VALJA"
+    def checkNeighbors2(self, x, y):
+        neighbors = []
+        if self.matrix[x][y] == 0 or self.matrix[x][y] == ' ':
             return [] # vraca prazno jer ne uzimamo u obzir prazna polja
         
         # da bi radilo za korena polja da ne nalazi susede koji su korena polja
@@ -158,35 +187,82 @@ class Board:
         roots = []
         for i in range(self.dim):
             for j in range(self.dim):
-                if (self.matrix[i][j] < 0):
-                    roots.append(i, j)
+                val = self.matrix[i][j]
 
+                # prvo proveravamo da li je int
+                if isinstance(val, int) and val < 0:
+                    roots.append((i, j))   # tuple koordinata
+        
         return roots
-     # da li je endRoot dozvoljen kraj
-    def isRealEndRoot(self, root1X, root1Y):
-        # TODO: napravi haha
 
+     # da li je endRoot dozvoljen kraj
+    
+    def isRealEndRoot(self, x1, y1, x2, y2):
+        # end root NE SME biti sused početnom root-u
+        if abs(x1 - x2) <= 1 and abs(y1 - y2) <= 1:
+            return False
+        return True
+
+
+    "NE VALJA"
+    def isRealEndRoot2(self, x1, y1, x2, y2):
+        if (((x1 + 1) != x2) and (x1 != (x2 + 1)) and
+            ((y1 + 1) != y2) and (y1 != (y2 + 1)) and
+            ((x1 < x2) or (y1 < y2) or (x1 > x2) or y1 > y2)):
+            return True
+
+        return False
+
+    def isRoot(self, x, y):
+        if (self.matrix[x][y] < 0):
+            return True
         return False
 
     # provera da li je kraj igre - DPS
     def isGoal(self):
-        # minimalan br. poteza za kraj igre
-        if (self.moveCount > (2 * (self.size - 1) - 1)):
-            visitedRoots = set()    # skup ima jedinstvene elemente
-            roots = self.getRoots()
-            for i, (nx, ny) in enumerate(roots):
-                # i = indeks, (nx, ny) = koordinata korena
-                if (nx, ny) in visitedRoots:
-                    continue
+        # prerano za proveru
+        if self.moveCount <= (2 * (self.size - 1) - 1):
+            return False
 
-                # lista komsija trenutnog root polja
-                currRootNeighbors = self.checkNeighbors(nx, ny)
-                if (currRootNeighbors):
-                    for neighbor in currRootNeighbors:
-                        if neighbor in visitedRoots:
-                            continue
-                            
-                        visitedRoots.add(neighbor)
+        roots = self.getRoots()  # lista svih root koordinata
+        visited_global = set()   # da ne pokrećemo DFS više puta iz iste komponente
+
+        for (rx, ry) in roots:
+            if (rx, ry) in visited_global:
+                continue
+
+            stack = [(rx, ry)]
+            visited_local = set()
+            visited_local.add((rx, ry))
+
+            while stack:
+                x, y = stack.pop()
+
+                # prolazimo kroz sve komšije trenutnog polja
+                #print(f"Susedi polja: {x,y}:")
+                for (nx, ny) in self.checkNeighbors(x, y):
+                    #print(f"({nx}, {ny})", end=" ")
+                    if (nx, ny) in visited_local:
+                        continue
+
+                    visited_local.add((nx, ny))
+                    visited_global.add((nx, ny))
+
+                    # PROVERA: da li je root i nije početni root
+                    if self.isRoot(nx, ny) and (nx, ny) != (rx, ry):
+                        if self.isRealEndRoot(rx, ry, nx, ny):
+                            print()
+                            print(f"----------KRAJ IGRE----------")
+                            print(f"Pocetni root: {(rx, ry)}, End root: {(nx, ny)}")
+                            return True
+
+                    # dodajemo suseda u stack za dalji DFS
+                    stack.append((nx, ny))
+                #print()
+
+        # ako nijedna komponenta nije dala kraj igre
+        return False
+
 
 def number_to_position(number, board_size):
         column_lengths = []
