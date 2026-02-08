@@ -2,7 +2,7 @@ import pygame
 from ui.renderer import draw_board, get_clicked_edge, draw_menu, handle_menu_click, selected
 from game.board import Board, number_to_position, position_to_edge_id, debug_segments
 from constants import COLORS
-from ai.minimax import minimax
+from ai.minimax import find_best_move
 
 pygame.init()
 screen = pygame.display.set_mode((600, 600))
@@ -29,12 +29,13 @@ ai_thinking = False # Zastavica da ne primamo input dok AI misli
 def make_ai_move():
     global current_player, ai_thinking, game_state, winner_text
 
-    # Prilagodi dubinu
-    depth = 3 if board.size <= 5 else 2
+    # Prilagodi dubinu (iterativno do max_depth uz vremensko ogranicenje)
+    max_depth = 4 if board.size <= 5 else 3
+    if board.moveCount > (board.size * 2):
+        max_depth += 1
 
     print("AI razmislja...")
-    # Pozivamo funkciju (sada ce raditi sa dobrim importom)
-    _, move = minimax(board, depth, float('-inf'), float('inf'), True, ai_player)
+    _, move = find_best_move(board, ai_player, max_depth, time_limit_s=0.9)
 
     if move:
         row, col = move
@@ -53,6 +54,7 @@ def make_ai_move():
         if board.isGoal():
             print("AI POBEDIO!")
             winner_text = f"Pobednik: AI ({'Crveni' if ai_player == 1 else 'Zeleni'})"
+            board.drawMatrix()
             game_state = GAME_OVER
         else:
             # ISPRAVKA: Vrati potez onome ko NIJE AI (tj. čoveku)
@@ -102,6 +104,7 @@ while running:
 
                             if board.isGoal():
                                 winner_text = f"Pobednik: Igrac {current_player}"
+                                board.drawMatrix()
                                 game_state = GAME_OVER
                             else:
                                 # Promeni igraca

@@ -83,6 +83,16 @@ class Board:
         self.segment_neighbors = {}
         self.group_roots()
 
+        # Cache playable positions that map to UI edge ids
+        self.playable_positions = []
+        i = 0
+        while True:
+            r, c = number_to_position(i, self.size)
+            if r == -1 and c == -1:
+                break
+            self.playable_positions.append((r, c))
+            i += 1
+
     def group_roots(self):
         roots = self.getRoots()
         self.root_segments = {}
@@ -162,7 +172,6 @@ class Board:
             self.matrix[x][y] = player
 
     def apply_move(self, x, y, player):
-        # provera
         if not (0 <= x < self.dim and 0 <= y < self.dim):
             return False
         if self.matrix[x][y] != 0:
@@ -208,7 +217,6 @@ class Board:
         if val == 0 or val == ' ':
             return []
 
-        # 6 pravaca kretanja u heksagonalnoj mreži (unutar matrice)
         directions = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, 1)]
 
         for dx, dy in directions:
@@ -321,10 +329,9 @@ class Board:
     def get_valid_moves(self):
         """Vraća listu (x, y) za sva slobodna polja u matrici (gde je 0)."""
         moves = []
-        for i in range(self.dim):
-            for j in range(self.dim):
-                if self.matrix[i][j] == 0:
-                    moves.append((i, j))
+        for i, j in self.playable_positions:
+            if self.matrix[i][j] == 0:
+                moves.append((i, j))
         return moves
 
 def number_to_position(number, board_size):
