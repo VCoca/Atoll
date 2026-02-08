@@ -334,6 +334,9 @@ class Board:
                 moves.append((i, j))
         return moves
 
+    def hash(self):
+        return hash(str(self.matrix))
+
 def number_to_position(number, board_size):
         column_lengths = []
         

@@ -3,7 +3,6 @@ import time
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-
 INF = 10 ** 9
 WIN_SCORE = 100000
 DIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, 1)]
@@ -25,10 +24,6 @@ class TTEntry:
     best_move: Optional[Tuple[int, int]]
 
 
-def _board_key(board):
-    return tuple(tuple(row) for row in board.matrix)
-
-
 def _check_time(start_time, time_limit_s):
     if time_limit_s is None:
         return
@@ -36,35 +31,29 @@ def _check_time(start_time, time_limit_s):
         raise SearchTimeout
 
 
-def _generate_candidate_moves(board):
-    if not board.moves:
-        return board.get_valid_moves()
+# ---------- FAST HEURISTIC ----------
+def fast_heuristic(board, player):
+    if board.isGoal():
+        return WIN_SCORE if board.winner == player else -WIN_SCORE
 
-    roots = board.getRoots()
-    seeds = list(board.moves) + roots
-    candidates = set()
-    radius = 2
+    opponent = 2 if player == 1 else 1
+    score = 0
+    center = board.dim // 2
 
-    for x, y in seeds:
-        for dx, dy in DIRECTIONS:
-            for step in range(1, radius + 1):
-                nx = x + dx * step
-                ny = y + dy * step
-                if 0 <= nx < board.dim and 0 <= ny < board.dim:
-                    if board.matrix[nx][ny] == 0:
-                        candidates.add((nx, ny))
-
-    if not candidates:
-        return board.get_valid_moves()
-
-    return list(candidates)
+    for i in range(board.dim):
+        for j in range(board.dim):
+            if board.matrix[i][j] == player:
+                score += 5 - abs(i - center) - abs(j - center)
+            elif board.matrix[i][j] == opponent:
+                score -= 5 - abs(i - center) - abs(j - center)
+    return score
 
 
+# ---------- MOVE GENERATION ----------
 def _move_order_score(board, move, player):
     x, y = move
     center = board.dim // 2
-    dist = abs(x - center) + abs(y - center)
-    score = -dist
+    score = -abs(x - center) - abs(y - center)
 
     for dx, dy in DIRECTIONS:
         nx = x + dx
@@ -77,10 +66,37 @@ def _move_order_score(board, move, player):
                 score += 2
             elif val not in (0, ' '):
                 score += 1
-
     return score
 
 
+def _generate_candidate_moves(board, limit=12):
+    if not board.moves:
+        return board.get_valid_moves()
+
+    roots = board.getRoots()
+    seeds = list(board.moves[-8:]) + roots
+    candidates = set()
+
+    for x, y in seeds:
+        for dx, dy in DIRECTIONS:
+            nx = x + dx
+            ny = y + dy
+            if 0 <= nx < board.dim and 0 <= ny < board.dim:
+                if board.matrix[nx][ny] == 0:
+                    candidates.add((nx, ny))
+
+    if not candidates:
+        return board.get_valid_moves()
+
+    ordered = sorted(
+        candidates,
+        key=lambda m: _move_order_score(board, m, 1),
+        reverse=True
+    )
+    return ordered[:limit]
+
+
+# ---------- MINIMAX ----------
 def minimax(
     board,
     depth,
@@ -88,12 +104,10 @@ def minimax(
     beta,
     maximizing_player,
     player_ai,
-    tt=None,
-    start_time=None,
-    time_limit_s=None,
+    tt,
+    start_time,
+    time_limit_s,
 ):
-    if start_time is None:
-        start_time = time.perf_counter()
     _check_time(start_time, time_limit_s)
 
     if board.isGoal():
@@ -102,17 +116,14 @@ def minimax(
         return -WIN_SCORE - depth, None
 
     if depth == 0:
-        return heuristic(board, player_ai), None
+        return fast_heuristic(board, player_ai), None
 
-    if tt is None:
-        tt = {}
-
-    key = (maximizing_player, _board_key(board))
+    key = (maximizing_player, board.hash())
     entry = tt.get(key)
-    if entry is not None and entry.depth >= depth:
+    if entry and entry.depth >= depth:
         if entry.flag == EXACT:
             return entry.value, entry.best_move
-        if entry.flag == LOWER:
+        elif entry.flag == LOWER:
             alpha = max(alpha, entry.value)
         elif entry.flag == UPPER:
             beta = min(beta, entry.value)
@@ -122,24 +133,19 @@ def minimax(
     alpha_orig = alpha
     beta_orig = beta
 
-    best_move = None
     opponent = 2 if player_ai == 1 else 1
     current_player = player_ai if maximizing_player else opponent
 
-    valid_moves = _generate_candidate_moves(board)
-    if not valid_moves:
-        return heuristic(board, player_ai), None
+    moves = _generate_candidate_moves(board)
+    if not moves:
+        return fast_heuristic(board, player_ai), None
 
-    valid_moves.sort(
-        key=lambda m: _move_order_score(board, m, current_player),
-        reverse=maximizing_player,
-    )
+    best_move = None
 
     if maximizing_player:
         value = -INF
-        for move in valid_moves:
-            _check_time(start_time, time_limit_s)
-            board.apply_move(move[0], move[1], player_ai)
+        for move in moves:
+            board.apply_move(move[0], move[1], current_player)
             try:
                 eval_score, _ = minimax(
                     board,
@@ -159,14 +165,13 @@ def minimax(
                 value = eval_score
                 best_move = move
 
-            alpha = max(alpha, eval_score)
-            if beta <= alpha:
+            alpha = max(alpha, value)
+            if alpha >= beta:
                 break
     else:
         value = INF
-        for move in valid_moves:
-            _check_time(start_time, time_limit_s)
-            board.apply_move(move[0], move[1], opponent)
+        for move in moves:
+            board.apply_move(move[0], move[1], current_player)
             try:
                 eval_score, _ = minimax(
                     board,
@@ -186,7 +191,7 @@ def minimax(
                 value = eval_score
                 best_move = move
 
-            beta = min(beta, eval_score)
+            beta = min(beta, value)
             if beta <= alpha:
                 break
 
@@ -196,12 +201,13 @@ def minimax(
         flag = LOWER
     else:
         flag = EXACT
-    tt[key] = TTEntry(depth, value, flag, best_move)
 
+    tt[key] = TTEntry(depth, value, flag, best_move)
     return value, best_move
 
 
-def find_best_move(board, player_ai, max_depth, time_limit_s=0.9):
+# ---------- ROOT SEARCH ----------
+def find_best_move(board, player_ai, max_depth=7, time_limit_s=1.0):
     start_time = time.perf_counter()
     best_move = None
     best_score = -INF

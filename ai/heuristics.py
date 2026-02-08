@@ -1,3 +1,5 @@
+from collections import deque
+
 INF = 10 ** 9
 DIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, 1)]
 
@@ -45,9 +47,11 @@ def heuristic(board, player):
         o_min_dist = _min_connection_distance(board, opponent)
 
         if p_min_dist is not None:
-            score += max(0, 10 - p_min_dist) * 140
+            score += (max(0, 16 - p_min_dist) ** 3) * 10
         if o_min_dist is not None:
-            score -= max(0, 10 - o_min_dist) * 180
+            score -= (max(0, 16 - o_min_dist) ** 4) * 15
+
+    score -= _detect_opponent_forks(board, opponent)
 
     # Adaptivna odbrana:
     # - Ako protivnik gura centar, vise vrednujemo blokadu njihovih root-ova
@@ -80,6 +84,7 @@ def heuristic(board, player):
     return score
 
 
+
 def count_connected_segments(board, player):
     visited_cells = set()
     best_connection_value = 0
@@ -88,12 +93,12 @@ def count_connected_segments(board, player):
     for i in range(board.dim):
         for j in range(board.dim):
             if board.matrix[i][j] == player and (i, j) not in visited_cells:
-                queue = [(i, j)]
+                queue = deque([(i, j)])
                 visited_cells.add((i, j))
                 touched_segments = set()
 
                 while queue:
-                    cx, cy = queue.pop(0)
+                    cx, cy = queue.popleft()
                     neighbors = board.checkNeighbors(cx, cy)
                     for nx, ny in neighbors:
                         val = board.matrix[nx][ny]
@@ -242,7 +247,6 @@ def _min_connection_distance(board, player):
 
 def _min_dist_between_sets(board, player, starts, targets):
     from collections import deque
-
     opponent = 2 if player == 1 else 1
     target_set = set(targets)
     inf = 10 ** 9
@@ -258,17 +262,31 @@ def _min_dist_between_sets(board, player, starts, targets):
         d = dist[x][y]
         if (x, y) in target_set:
             return d
+
         for dx, dy in DIRECTIONS:
-            nx = x + dx
-            ny = y + dy
-            if not (0 <= nx < board.dim and 0 <= ny < board.dim):
+            nx, ny = x + dx, y + dy
+            if not (0 <= nx < board.dim and 0 <= ny < board.dim) or board.matrix[nx][ny] == ' ':
                 continue
+
             val = board.matrix[nx][ny]
-            if val == ' ':
-                continue
             if val == opponent or (isinstance(val, int) and val < 0 and abs(val) == opponent):
                 continue
-            cost = 0 if (val == player or (isinstance(val, int) and val < 0 and abs(val) == player)) else 1
+
+            # --- KLJUČNA IZMENA: CENA PRELASKA ---
+            if val == player or (isinstance(val, int) and val < 0 and abs(val) == player):
+                cost = 0
+            else:
+                # Proveravamo da li je ovo polje "Most" (povezuje dve tvoje figure)
+                # Ako jeste, prelazak je "jeftiniji" jer je to kritična tačka
+                friendly_neighbors = 0
+                for ddx, ddy in DIRECTIONS:
+                    nnx, nny = nx + ddx, ny + ddy
+                    if 0 <= nnx < board.dim and 0 <= nny < board.dim:
+                        if board.matrix[nnx][nny] == player:
+                            friendly_neighbors += 1
+
+                cost = 0.6 if friendly_neighbors >= 2 else 1.0
+
             nd = d + cost
             if nd < dist[nx][ny]:
                 dist[nx][ny] = nd
@@ -450,3 +468,42 @@ def _root_entry_blocking(board, player):
             if board.matrix[nx][ny] == player:
                 blocked.add((nx, ny))
     return len(blocked)
+
+
+def _detect_opponent_forks(board, opponent):
+    fork_score = 0
+    candidate_moves = _candidate_moves(board)
+
+    for x, y in candidate_moves:
+        board.apply_move(x, y, opponent)
+        try:
+            threat_count = 0
+            segments = board.root_segments
+            player_segs = list(set(
+                sid for pos, sid in segments.items()
+                if abs(board.matrix[pos[0]][pos[1]]) == opponent
+            ))
+
+            for i in range(len(player_segs)):
+                for j in range(i + 1, len(player_segs)):
+                    s1, s2 = player_segs[i], player_segs[j]
+                    if s2 in board.segment_neighbors.get(s1, set()):
+                        continue
+
+                    d = _min_dist_between_sets(
+                        board, opponent,
+                        [p for p, sid in segments.items() if sid == s1],
+                        [p for p, sid in segments.items() if sid == s2]
+                    )
+
+                    if d is not None and d <= 1.5:
+                        threat_count += 1
+                        if threat_count >= 2:
+                            fork_score += 5000
+                            break
+                if threat_count >= 2:
+                    break
+        finally:
+            board.undo_move()
+
+    return fork_score
