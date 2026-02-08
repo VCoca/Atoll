@@ -36,6 +36,10 @@ def heuristic(board, player):
     score += _connection_potential(board, player) * 40
     score -= _connection_potential(board, opponent) * 50
 
+    # Pretnja "prave linije": dugi, otvoreni lanci koji prave direktan prolaz
+    score += _straight_line_threat(board, player) * 60
+    score -= _straight_line_threat(board, opponent) * 90
+
     # Rani game: kazna za "lepljenje" uz korene bez razvijanja lanca
     if board.moveCount < 8:
         score -= _edge_hugging_penalty(board, player) * 120
@@ -218,6 +222,87 @@ def _edge_hugging_penalty(board, player):
             if root_adj > 0 and friendly_adj <= 1:
                 penalty += 1
     return penalty
+
+
+def _straight_line_threat(board, player):
+    # Detect long, open-ended straight chains that can become a fast win path.
+    axis_dirs = [(1, 0), (0, 1), (1, 1)]
+    total = 0
+
+    for i in range(board.dim):
+        for j in range(board.dim):
+            if board.matrix[i][j] != player:
+                continue
+
+            for dx, dy in axis_dirs:
+                # Only start counting if this is the beginning of the chain
+                px, py = i - dx, j - dy
+                if 0 <= px < board.dim and 0 <= py < board.dim:
+                    if board.matrix[px][py] == player:
+                        continue
+
+                length = 0
+                x, y = i, j
+                while 0 <= x < board.dim and 0 <= y < board.dim and board.matrix[x][y] == player:
+                    length += 1
+                    x += dx
+                    y += dy
+
+                if length < 3:
+                    continue
+
+                end1 = (i - dx, j - dy)
+                end2 = (x, y)  # first cell after the chain
+
+                open1 = _is_open_or_root(board, player, end1)
+                open2 = _is_open_or_root(board, player, end2)
+                if not (open1 or open2):
+                    continue
+
+                open_ends = (1 if open1 else 0) + (1 if open2 else 0)
+                access = 0
+                if open1:
+                    access += _root_proximity(board, player, end1)
+                if open2:
+                    access += _root_proximity(board, player, end2)
+
+                base = length * length
+                if open_ends == 2:
+                    total += base * (1 + 0.5 * access)
+                else:
+                    total += base * 0.6 * (1 + 0.5 * access)
+
+    return total
+
+
+def _is_open_or_root(board, player, pos):
+    x, y = pos
+    if not (0 <= x < board.dim and 0 <= y < board.dim):
+        return False
+    val = board.matrix[x][y]
+    if val == 0:
+        return True
+    return isinstance(val, int) and val < 0 and abs(val) == player
+
+
+def _root_proximity(board, player, pos):
+    x, y = pos
+    # If this is already a root cell, treat as strong access
+    val = board.matrix[x][y] if (0 <= x < board.dim and 0 <= y < board.dim) else None
+    if isinstance(val, int) and val < 0 and abs(val) == player:
+        return 1
+
+    # Check if any player root is within 2 steps
+    for dx, dy in DIRECTIONS:
+        for step in (1, 2):
+            nx = x + dx * step
+            ny = y + dy * step
+            if not (0 <= nx < board.dim and 0 <= ny < board.dim):
+                continue
+            nval = board.matrix[nx][ny]
+            if isinstance(nval, int) and nval < 0 and abs(nval) == player:
+                return 1
+    return 0
 
 
 def _min_connection_distance(board, player):

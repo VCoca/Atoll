@@ -116,7 +116,7 @@ def minimax(
         return -WIN_SCORE - depth, None
 
     if depth == 0:
-        return fast_heuristic(board, player_ai), None
+        return heuristic(board, player_ai), None
 
     key = (maximizing_player, board.hash())
     entry = tt.get(key)
