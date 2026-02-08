@@ -35,7 +35,7 @@ def make_ai_move():
         max_depth += 1
 
     print("AI razmislja...")
-    _, move = find_best_move(board, ai_player, max_depth, time_limit_s=0.9)
+    _, move = find_best_move(board, ai_player, max_depth, time_limit_s=2)
 
     if move:
         row, col = move

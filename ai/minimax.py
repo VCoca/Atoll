@@ -97,6 +97,29 @@ def _generate_candidate_moves(board, limit=12):
 
 
 # ---------- MINIMAX ----------
+def _order_moves(moves, tt_move, killers_for_depth):
+    if not moves:
+        return moves
+
+    ordered = []
+    seen = set()
+
+    if tt_move is not None and tt_move in moves:
+        ordered.append(tt_move)
+        seen.add(tt_move)
+
+    for km in killers_for_depth:
+        if km is not None and km in moves and km not in seen:
+            ordered.append(km)
+            seen.add(km)
+
+    for m in moves:
+        if m not in seen:
+            ordered.append(m)
+
+    return ordered
+
+
 def minimax(
     board,
     depth,
@@ -105,6 +128,7 @@ def minimax(
     maximizing_player,
     player_ai,
     tt,
+    killers,
     start_time,
     time_limit_s,
 ):
@@ -140,6 +164,8 @@ def minimax(
     if not moves:
         return fast_heuristic(board, player_ai), None
 
+    moves = _order_moves(moves, entry.best_move if entry else None, killers.get(depth, []))
+
     best_move = None
 
     if maximizing_player:
@@ -155,6 +181,7 @@ def minimax(
                     False,
                     player_ai,
                     tt,
+                    killers,
                     start_time,
                     time_limit_s,
                 )
@@ -167,6 +194,13 @@ def minimax(
 
             alpha = max(alpha, value)
             if alpha >= beta:
+                if best_move is not None:
+                    killers.setdefault(depth, [])
+                    km = killers[depth]
+                    if best_move not in km:
+                        km.append(best_move)
+                        if len(km) > 2:
+                            km.pop(0)
                 break
     else:
         value = INF
@@ -181,6 +215,7 @@ def minimax(
                     True,
                     player_ai,
                     tt,
+                    killers,
                     start_time,
                     time_limit_s,
                 )
@@ -193,6 +228,13 @@ def minimax(
 
             beta = min(beta, value)
             if beta <= alpha:
+                if best_move is not None:
+                    killers.setdefault(depth, [])
+                    km = killers[depth]
+                    if best_move not in km:
+                        km.append(best_move)
+                        if len(km) > 2:
+                            km.pop(0)
                 break
 
     if value <= alpha_orig:
@@ -212,6 +254,7 @@ def find_best_move(board, player_ai, max_depth=7, time_limit_s=1.0):
     best_move = None
     best_score = -INF
     tt = {}
+    killers = {}
 
     for depth in range(1, max_depth + 1):
         try:
@@ -223,6 +266,7 @@ def find_best_move(board, player_ai, max_depth=7, time_limit_s=1.0):
                 True,
                 player_ai,
                 tt,
+                killers,
                 start_time,
                 time_limit_s,
             )
