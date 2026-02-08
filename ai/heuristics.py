@@ -12,7 +12,8 @@ def heuristic(board, player):
     score += count_connected_segments(board, player) * 50
     score -= count_connected_segments(board, opponent) * 80  # Prioritet na blokiranju
 
-    center = board.size
+    # promena od board.size zbog konzistencije
+    center = board.dim // 2
 
     for i in range(board.dim):
         for j in range(board.dim):

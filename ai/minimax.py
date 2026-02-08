@@ -1,4 +1,3 @@
-import copy
 from ai.heuristics import heuristic
 
 def minimax(board, depth, alpha, beta, maximizing_player, player_ai):
@@ -14,23 +13,21 @@ def minimax(board, depth, alpha, beta, maximizing_player, player_ai):
 
     if depth == 0:
         return heuristic(board, player_ai), None
-
-    valid_moves = board.get_valid_moves()
-
+    
     # Sortiranje poteza može ubrzati alpha-beta (opciono, npr. prvo potezi blizu centra)
     # valid_moves.sort(...)
+
+    valid_moves = board.get_valid_moves()
 
     best_move = None
 
     if maximizing_player:
         max_eval = float('-inf')
         for move in valid_moves:
-            # OPTIMIZACIJA: Umesto deepcopy, koristi modifyArray pa vrati nazad (backtrack)
-            # Ali tvoj Board trenutno nema 'undo', pa koristimo deepcopy
-            new_board = copy.deepcopy(board)
-            new_board.modifyArray(move[0], move[1], player_ai)
+            board.apply_move(move[0], move[1], player_ai)
 
-            eval_score, _ = minimax(new_board, depth - 1, alpha, beta, False, player_ai)
+            eval_score, _ = minimax(board, depth - 1, alpha, beta, False, player_ai)
+            board.undo_move()
 
             if eval_score > max_eval:
                 max_eval = eval_score
@@ -44,10 +41,10 @@ def minimax(board, depth, alpha, beta, maximizing_player, player_ai):
         min_eval = float('inf')
         opponent = 2 if player_ai == 1 else 1
         for move in valid_moves:
-            new_board = copy.deepcopy(board)
-            new_board.modifyArray(move[0], move[1], opponent)
+            board.apply_move(move[0], move[1], opponent)
 
-            eval_score, _ = minimax(new_board, depth - 1, alpha, beta, True, player_ai)
+            eval_score, _ = minimax(board, depth - 1, alpha, beta, True, player_ai)
+            board.undo_move()
 
             if eval_score < min_eval:
                 min_eval = eval_score

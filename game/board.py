@@ -25,6 +25,7 @@ class Board:
         self.moveCount: int = 0
 
         self.moves = []
+        self._history = []
 
         # punjenje rubova
         # -1 crvena, -2 zelena
@@ -159,6 +160,40 @@ class Board:
         # pretpostavlja da su x i y dobri, proverava se van
         if 0 <= x < self.dim and 0 <= y < self.dim:
             self.matrix[x][y] = player
+
+    def apply_move(self, x, y, player):
+        # provera
+        if not (0 <= x < self.dim and 0 <= y < self.dim):
+            return False
+        if self.matrix[x][y] != 0:
+            return False
+
+        prev_val = self.matrix[x][y]
+        prev_game_over = self.game_over
+        prev_winner = self.winner
+        prev_move_count = self.moveCount
+        prev_moves_len = len(self.moves)
+
+        self._history.append((x, y, prev_val, prev_game_over, prev_winner, prev_move_count, prev_moves_len))
+        self.matrix[x][y] = player
+        self.moveCount += 1
+        self.moves.append((x, y))
+        self.game_over = False
+        self.winner = None
+        return True
+
+    def undo_move(self):
+        if not self._history:
+            return False
+
+        x, y, prev_val, prev_game_over, prev_winner, prev_move_count, prev_moves_len = self._history.pop()
+        self.matrix[x][y] = prev_val
+        self.game_over = prev_game_over
+        self.winner = prev_winner
+        self.moveCount = prev_move_count
+        if len(self.moves) > prev_moves_len:
+            del self.moves[prev_moves_len:]
+        return True
 
 
     def checkNeighbors(self, x, y):

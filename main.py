@@ -40,8 +40,7 @@ def make_ai_move():
         row, col = move
 
         # 1. Update logiku
-        board.modifyArray(row, col, ai_player)
-        board.moveCount += 1
+        board.apply_move(row, col, ai_player)
 
         # 2. Update vizuelni deo (UI)
         edge_id = position_to_edge_id(row, col, board.size)
@@ -99,8 +98,7 @@ while running:
                             # Odigraj potez
                             board.edges[edge_id] = current_player
                             row, col = number_to_position(edge_id, board.size)
-                            board.modifyArray(row, col, current_player)
-                            board.moveCount += 1
+                            board.apply_move(row, col, current_player)
 
                             if board.isGoal():
                                 winner_text = f"Pobednik: Igrac {current_player}"
