@@ -1,25 +1,81 @@
+INF = 10 ** 9
+DIRECTIONS = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, 1)]
+
+
 def heuristic(board, player):
     if board.isGoal():
         # Ako je trenutni igrač upravo pobedio
-        # (ovde treba biti pažljiv ko je odigrao poslednji potez)
-        return 1000 if board.winner == player else -1000
+        return 100000 if board.winner == player else -100000
 
-    score = 0
     opponent = 2 if player == 1 else 1
 
-    # Jednostavna heuristika: koliko različitih segmenata dodiruju figure igrača
-    # Možeš meriti i dužinu najdužeg lanca.
-    score += count_connected_segments(board, player) * 50
-    score -= count_connected_segments(board, opponent) * 80  # Prioritet na blokiranju
+    # Kratkorocne pretnje (pobeda u 1 potezu)
+    player_wins = _count_immediate_wins(board, player)
+    opponent_wins = _count_immediate_wins(board, opponent)
+    if player_wins > 0:
+        return 90000 + player_wins * 1000
+    if opponent_wins > 0:
+        return -90000 - opponent_wins * 1000
 
-    # promena od board.size zbog konzistencije
+    score = 0
+
+    # Povezanost sa segmentima korena
+    p_best_pairs, p_total_segments = count_connected_segments(board, player)
+    o_best_pairs, o_total_segments = count_connected_segments(board, opponent)
+
+    score += p_best_pairs * 600
+    score -= o_best_pairs * 700
+
+    # Dodirivanje segmenata je korisno, ali ne sme da dominira pocetnu igru
+    score += p_total_segments * 40
+    score -= o_total_segments * 50
+
+    # Lokalni potencijal spajanja preko praznih polja
+    score += _connection_potential(board, player) * 40
+    score -= _connection_potential(board, opponent) * 50
+
+    # Rani game: kazna za "lepljenje" uz korene bez razvijanja lanca
+    if board.moveCount < 8:
+        score -= _edge_hugging_penalty(board, player) * 120
+        score += _edge_hugging_penalty(board, opponent) * 120
+
+    # Rani game: prepoznaj "pravu liniju" (kratak put izmedju segmenata)
+    if board.moveCount < 12:
+        p_min_dist = _min_connection_distance(board, player)
+        o_min_dist = _min_connection_distance(board, opponent)
+
+        if p_min_dist is not None:
+            score += max(0, 10 - p_min_dist) * 140
+        if o_min_dist is not None:
+            score -= max(0, 10 - o_min_dist) * 180
+
+    # Adaptivna odbrana:
+    # - Ako protivnik gura centar, vise vrednujemo blokadu njihovih root-ova
+    # - Ako protivnik gradi po ivicama, kaznjavamo njihov edge progres
+    o_center_pressure = _center_pressure(board, opponent)
+    score += _block_root_adjacency(board, player) * (30 + o_center_pressure * 4)
+    score += _targeted_edge_blocking(board, player) * 90
+    score -= _edge_pressure_total(board, opponent) * 60
+    score += _edge_pressure_total(board, player) * 20
+
+    # Prioritet: blokiranje pristupa protivnika ka ivicama (root-ovima),
+    # i kada nisu povezani sa drugim root-om.
+    opp_root_connected, opp_connect_in_one, opp_entry_cells = _root_access_threats(board, opponent)
+    score -= opp_root_connected * 180
+    score -= opp_connect_in_one * 220
+    score -= opp_entry_cells * 35
+    score += _root_entry_blocking(board, player) * 160
+
+    # Blaga preferencija ka centru (manja tezina)
     center = board.dim // 2
-
     for i in range(board.dim):
         for j in range(board.dim):
             if board.matrix[i][j] == player:
                 dist_to_center = abs(i - center) + abs(j - center)
-                score += (board.size - dist_to_center) * 0.1
+                score += (board.size - dist_to_center) * 0.05
+            elif board.matrix[i][j] == opponent:
+                dist_to_center = abs(i - center) + abs(j - center)
+                score -= (board.size - dist_to_center) * 0.05
 
     return score
 
@@ -27,6 +83,7 @@ def heuristic(board, player):
 def count_connected_segments(board, player):
     visited_cells = set()
     best_connection_value = 0
+    total_segments_touched = 0
 
     for i in range(board.dim):
         for j in range(board.dim):
@@ -63,5 +120,333 @@ def count_connected_segments(board, player):
                 elif len(touched_segments) == 1:
                     # Stimulišemo AI da bar krene od nekog segmenta
                     best_connection_value = max(best_connection_value, 0.5)
+                total_segments_touched += len(touched_segments)
 
-    return best_connection_value
+    return best_connection_value, total_segments_touched
+
+
+def _connection_potential(board, player):
+    if not board.moves:
+        return 0
+    opponent = 2 if player == 1 else 1
+    total = 0
+    for x, y in _candidate_moves(board):
+        segs = set()
+        friendly_adj = 0
+        for dx, dy in DIRECTIONS:
+            nx = x + dx
+            ny = y + dy
+            if not (0 <= nx < board.dim and 0 <= ny < board.dim):
+                continue
+            val = board.matrix[nx][ny]
+            if val == player:
+                friendly_adj += 1
+            elif isinstance(val, int) and val < 0 and abs(val) == player:
+                seg_id = board.root_segments.get((nx, ny))
+                if seg_id is not None:
+                    segs.add(seg_id)
+            elif val == opponent:
+                friendly_adj -= 1
+        if len(segs) >= 2:
+            segs_list = list(segs)
+            for i in range(len(segs_list)):
+                for j in range(i + 1, len(segs_list)):
+                    s1 = segs_list[i]
+                    s2 = segs_list[j]
+                    if s2 not in board.segment_neighbors.get(s1, set()):
+                        total += 3
+        elif len(segs) == 1 and friendly_adj > 1:
+            total += 1
+    return total
+
+
+def _candidate_moves(board):
+    moves = board.get_valid_moves()
+    if not board.moves:
+        return moves
+    filtered = []
+    for x, y in moves:
+        near = False
+        for dx, dy in DIRECTIONS:
+            nx = x + dx
+            ny = y + dy
+            if 0 <= nx < board.dim and 0 <= ny < board.dim:
+                val = board.matrix[nx][ny]
+                if val != 0 and val != ' ':
+                    near = True
+                    break
+        if near:
+            filtered.append((x, y))
+    return filtered
+
+
+def _count_immediate_wins(board, player):
+    wins = 0
+    for move in _candidate_moves(board):
+        board.apply_move(move[0], move[1], player)
+        try:
+            if board.isGoal() and board.winner == player:
+                wins += 1
+        finally:
+            board.undo_move()
+    return wins
+
+
+def _edge_hugging_penalty(board, player):
+    penalty = 0
+    for i in range(board.dim):
+        for j in range(board.dim):
+            if board.matrix[i][j] != player:
+                continue
+            root_adj = 0
+            friendly_adj = 0
+            for dx, dy in DIRECTIONS:
+                nx = i + dx
+                ny = j + dy
+                if not (0 <= nx < board.dim and 0 <= ny < board.dim):
+                    continue
+                val = board.matrix[nx][ny]
+                if isinstance(val, int) and val < 0 and abs(val) == player:
+                    root_adj += 1
+                elif val == player:
+                    friendly_adj += 1
+            if root_adj > 0 and friendly_adj <= 1:
+                penalty += 1
+    return penalty
+
+
+def _min_connection_distance(board, player):
+    segments = {}
+    for (x, y), seg_id in board.root_segments.items():
+        val = board.matrix[x][y]
+        if isinstance(val, int) and val < 0 and abs(val) == player:
+            segments.setdefault(seg_id, []).append((x, y))
+
+    seg_ids = list(segments.keys())
+    if len(seg_ids) < 2:
+        return None
+
+    best = None
+    for i in range(len(seg_ids)):
+        for j in range(i + 1, len(seg_ids)):
+            s1 = seg_ids[i]
+            s2 = seg_ids[j]
+            if s2 in board.segment_neighbors.get(s1, set()):
+                continue
+            dist = _min_dist_between_sets(board, player, segments[s1], segments[s2])
+            if dist is not None:
+                if best is None or dist < best:
+                    best = dist
+    return best
+
+
+def _min_dist_between_sets(board, player, starts, targets):
+    from collections import deque
+
+    opponent = 2 if player == 1 else 1
+    target_set = set(targets)
+    inf = 10 ** 9
+    dist = [[inf for _ in range(board.dim)] for _ in range(board.dim)]
+    dq = deque()
+
+    for x, y in starts:
+        dist[x][y] = 0
+        dq.appendleft((x, y))
+
+    while dq:
+        x, y = dq.popleft()
+        d = dist[x][y]
+        if (x, y) in target_set:
+            return d
+        for dx, dy in DIRECTIONS:
+            nx = x + dx
+            ny = y + dy
+            if not (0 <= nx < board.dim and 0 <= ny < board.dim):
+                continue
+            val = board.matrix[nx][ny]
+            if val == ' ':
+                continue
+            if val == opponent or (isinstance(val, int) and val < 0 and abs(val) == opponent):
+                continue
+            cost = 0 if (val == player or (isinstance(val, int) and val < 0 and abs(val) == player)) else 1
+            nd = d + cost
+            if nd < dist[nx][ny]:
+                dist[nx][ny] = nd
+                if cost == 0:
+                    dq.appendleft((nx, ny))
+                else:
+                    dq.append((nx, ny))
+    return None
+
+
+def _center_pressure(board, player):
+    center = board.dim // 2
+    radius = max(1, board.size // 2)
+    count = 0
+    for i in range(board.dim):
+        for j in range(board.dim):
+            if board.matrix[i][j] == player:
+                dist = abs(i - center) + abs(j - center)
+                if dist <= radius:
+                    count += 1
+    return count
+
+
+def _block_root_adjacency(board, player):
+    opponent = 2 if player == 1 else 1
+    score = 0
+    for i in range(board.dim):
+        for j in range(board.dim):
+            if board.matrix[i][j] != player:
+                continue
+            for dx, dy in DIRECTIONS:
+                nx = i + dx
+                ny = j + dy
+                if not (0 <= nx < board.dim and 0 <= ny < board.dim):
+                    continue
+                val = board.matrix[nx][ny]
+                if isinstance(val, int) and val < 0 and abs(val) == opponent:
+                    score += 1
+    return score
+
+
+def _edge_progression(board, player):
+    opponent = 2 if player == 1 else 1
+    progress = 0
+    for i in range(board.dim):
+        for j in range(board.dim):
+            if board.matrix[i][j] != player:
+                continue
+            root_adj = 0
+            empty_adj = 0
+            for dx, dy in DIRECTIONS:
+                nx = i + dx
+                ny = j + dy
+                if not (0 <= nx < board.dim and 0 <= ny < board.dim):
+                    continue
+                val = board.matrix[nx][ny]
+                if val == 0:
+                    empty_adj += 1
+                elif isinstance(val, int) and val < 0 and abs(val) == player:
+                    root_adj += 1
+                elif val == opponent or (isinstance(val, int) and val < 0 and abs(val) == opponent):
+                    pass
+            if root_adj > 0 and empty_adj > 0:
+                progress += 1
+    return progress
+
+
+def _edge_pressure_map(board, player):
+    pressure = {}
+    for i in range(board.dim):
+        for j in range(board.dim):
+            if board.matrix[i][j] != player:
+                continue
+            for dx, dy in DIRECTIONS:
+                for step in (1, 2):
+                    nx = i + dx * step
+                    ny = j + dy * step
+                    if not (0 <= nx < board.dim and 0 <= ny < board.dim):
+                        continue
+                    val = board.matrix[nx][ny]
+                    if isinstance(val, int) and val < 0 and abs(val) == player:
+                        seg_id = board.root_segments.get((nx, ny))
+                        if seg_id is not None:
+                            weight = 2 if step == 1 else 1
+                            pressure[seg_id] = pressure.get(seg_id, 0) + weight
+    return pressure
+
+
+def _edge_pressure_total(board, player):
+    m = _edge_pressure_map(board, player)
+    total = 0
+    for v in m.values():
+        total += v
+    return total
+
+
+def _targeted_edge_blocking(board, player):
+    opponent = 2 if player == 1 else 1
+    opp_pressure = _edge_pressure_map(board, opponent)
+    if not opp_pressure:
+        return 0
+
+    # Focus on the top pressured segments (edges the opponent is going for)
+    top_segments = sorted(opp_pressure.items(), key=lambda kv: kv[1], reverse=True)[:3]
+    top_ids = set(seg_id for seg_id, _ in top_segments)
+
+    block_score = 0
+    # Reward our stones adjacent to those specific segments
+    for i in range(board.dim):
+        for j in range(board.dim):
+            if board.matrix[i][j] != player:
+                continue
+            for dx, dy in DIRECTIONS:
+                nx = i + dx
+                ny = j + dy
+                if not (0 <= nx < board.dim and 0 <= ny < board.dim):
+                    continue
+                val = board.matrix[nx][ny]
+                if isinstance(val, int) and val < 0 and abs(val) == opponent:
+                    seg_id = board.root_segments.get((nx, ny))
+                    if seg_id in top_ids:
+                        block_score += 1
+
+    # Penalize if opponent pressure is high and we have not blocked those segments
+    total_pressure = sum(v for _, v in top_segments)
+    if total_pressure > 0:
+        block_score -= max(0, total_pressure - block_score)
+
+    return block_score
+
+
+def _root_access_threats(board, player):
+    connected = set()
+    entry_cells = set()
+
+    # Root polja su negativni int-ovi
+    for (rx, ry) in board.root_segments.keys():
+        val = board.matrix[rx][ry]
+        if not (isinstance(val, int) and val < 0 and abs(val) == player):
+            continue
+        for dx, dy in DIRECTIONS:
+            nx = rx + dx
+            ny = ry + dy
+            if not (0 <= nx < board.dim and 0 <= ny < board.dim):
+                continue
+            nval = board.matrix[nx][ny]
+            if nval == player:
+                connected.add((nx, ny))
+            elif nval == 0:
+                entry_cells.add((nx, ny))
+
+    # Potez kojim protivnik može da se "priključi" root-u u 1 potezu
+    connect_in_one = 0
+    for ex, ey in entry_cells:
+        for dx, dy in DIRECTIONS:
+            nx = ex + dx
+            ny = ey + dy
+            if not (0 <= nx < board.dim and 0 <= ny < board.dim):
+                continue
+            if board.matrix[nx][ny] == player:
+                connect_in_one += 1
+                break
+
+    return len(connected), connect_in_one, len(entry_cells)
+
+
+def _root_entry_blocking(board, player):
+    opponent = 2 if player == 1 else 1
+    blocked = set()
+    for (rx, ry) in board.root_segments.keys():
+        val = board.matrix[rx][ry]
+        if not (isinstance(val, int) and val < 0 and abs(val) == opponent):
+            continue
+        for dx, dy in DIRECTIONS:
+            nx = rx + dx
+            ny = ry + dy
+            if not (0 <= nx < board.dim and 0 <= ny < board.dim):
+                continue
+            if board.matrix[nx][ny] == player:
+                blocked.add((nx, ny))
+    return len(blocked)
