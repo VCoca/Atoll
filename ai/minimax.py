@@ -30,8 +30,6 @@ def _check_time(start_time, time_limit_s):
     if (time.perf_counter() - start_time) >= time_limit_s:
         raise SearchTimeout
 
-
-# ---------- FAST HEURISTIC ----------
 def fast_heuristic(board, player):
     if board.isGoal():
         return WIN_SCORE if board.winner == player else -WIN_SCORE
@@ -48,8 +46,6 @@ def fast_heuristic(board, player):
                 score -= 5 - abs(i - center) - abs(j - center)
     return score
 
-
-# ---------- MOVE GENERATION ----------
 def _move_order_score(board, move, player):
     x, y = move
     center = board.dim // 2
@@ -95,8 +91,6 @@ def _generate_candidate_moves(board, limit=12):
     )
     return ordered[:limit]
 
-
-# ---------- MINIMAX ----------
 def _order_moves(moves, tt_move, killers_for_depth):
     if not moves:
         return moves

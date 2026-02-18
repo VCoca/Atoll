@@ -661,7 +661,6 @@ def _evaluate_bridge_progress(board, player):
     """
     Evaluira koliko je igrač blizu da završi pobednički most.
     Most je lanac koji spaja dve ne-susedne ivice.
-    Ovo je KRITIČNO za detekciju pobedničkih strategija ravnom linijom.
     """
     # Nadje sve lance i segmente koje dodiruju
     visited = set()
